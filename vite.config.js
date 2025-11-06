@@ -7,9 +7,6 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      srcDir: 'public',
-      filename: 'sw-custom.js',
-      strategies: 'injectManifest',
       manifest: {
         name: 'Pokedex',
         short_name: 'Pokedex',
@@ -29,13 +26,6 @@ export default defineConfig({
             type: 'image/jpg'
           }
         ]
-      },
-      injectManifest: {
-        swSrc: 'public/sw-custom.js',
-      },
-      devOptions: {
-        enabled: true,
-        type: 'module',
       }
     })
   ]
