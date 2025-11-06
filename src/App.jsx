@@ -1,33 +1,19 @@
 import React, { useState, useEffect } from 'react';
-
-// Solicita permiso de notificaciones (ejemplo PDF)
-const pedirPermisoNotificaciones = async () => {
-  if ('Notification' in window) {
-    const permiso = await Notification.requestPermission();
-    return permiso === 'granted';
+// Utilidad para enviar mensaje al service worker
+function sendNotificationToSW({ title, body, icon }) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SHOW_POKEMON_NOTIFICATION',
+      title,
+      body,
+      icon,
+    });
   }
-  return false;
-};
-
-// Envía mensaje al service worker para mostrar notificación (ejemplo PDF)
-const notificarPokemon = async (pokemon) => {
-  if ('serviceWorker' in navigator && Notification.permission === 'granted') {
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (reg && reg.active) {
-      reg.active.postMessage({
-        type: 'SHOW_POKEMON_NOTIFICATION',
-        nombre: pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1),
-        id: pokemon.id,
-        tipos: pokemon.types?.map(t => t.type.name).join(', ') || 'Desconocido',
-        icono: pokemon.sprites?.front_default || '/pokeball.jpg',
-      });
-    }
-  }
-};
-
+}
 import './App.css';
 import PokemonStatsModal from './PokemonStatsModal';
 import './PokemonStatsModal.css';
+
 
 
 function App() {
@@ -35,7 +21,7 @@ function App() {
   const [search, setSearch] = useState('');
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [modalData, setModalData] = useState(null);
-  const [permisoNotificaciones, setPermisoNotificaciones] = useState(Notification.permission === 'granted');
+  const [notifPermission, setNotifPermission] = useState(() => (typeof Notification !== 'undefined' ? Notification.permission : 'default'));
 
   useEffect(() => {
     fetch('https://pokeapi.co/api/v2/pokemon?limit=20')
@@ -45,6 +31,14 @@ function App() {
 
   const filtered = pokemons.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
+  // Pedir permiso de notificaciones
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      const perm = await Notification.requestPermission();
+      setNotifPermission(perm);
+    }
+  };
+
   // Manejar click en la imagen para mostrar modal
   const handleCardClick = async (poke, pokeId) => {
     setSelectedPokemon(pokeId);
@@ -53,9 +47,13 @@ function App() {
       const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokeId}`);
       const data = await res.json();
       setModalData(data);
-      // Notificar solo si el usuario aceptó
-      if (permisoNotificaciones) {
-        notificarPokemon(data);
+      // Enviar notificación al SW si el permiso está concedido
+      if (notifPermission === 'granted') {
+        sendNotificationToSW({
+          title: `¡Pokémon consultado!`,
+          body: `Has consultado a ${data.name.charAt(0).toUpperCase() + data.name.slice(1)} (#${pokeId})`,
+          icon: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokeId}.png`,
+        });
       }
     } catch {
       setModalData(null);
@@ -70,17 +68,9 @@ function App() {
   return (
     <div className="App">
       <h1>Pokédex</h1>
-      {!permisoNotificaciones && (
-        <button
-          onClick={async () => {
-            const granted = await pedirPermisoNotificaciones();
-            setPermisoNotificaciones(granted);
-          }}
-          style={{ marginBottom: 16 }}
-        >
-          Permitir notificaciones
-        </button>
-      )}
+      <button onClick={requestNotificationPermission} disabled={notifPermission === 'granted'} style={{marginBottom: 12}}>
+        {notifPermission === 'granted' ? 'Notificaciones activadas' : 'Activar notificaciones'}
+      </button>
       <input
         type="text"
         placeholder="Buscar Pokémon..."
@@ -117,4 +107,4 @@ function App() {
   );
 }
 
-export default App;
+  export default App;
