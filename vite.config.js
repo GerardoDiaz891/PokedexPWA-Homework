@@ -7,6 +7,18 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // CAMBIO CLAVE: Configuración para usar un Service Worker personalizado
+      injectRegister: false,
+      pwaAssets: {
+        disabled: true
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg}']
+      },
+      injectManifest: {
+        swSrc: 'src/sw.js', // Ruta a tu Service Worker
+        swDest: 'sw.js',
+      },
       manifest: {
         name: 'Pokedex',
         short_name: 'Pokedex',
