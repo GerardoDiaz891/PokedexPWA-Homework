@@ -1,19 +1,7 @@
-import React, { useState, useEffect } from 'react';
-// Utilidad para enviar mensaje al service worker
-function sendNotificationToSW({ title, body, icon }) {
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SHOW_POKEMON_NOTIFICATION',
-      title,
-      body,
-      icon,
-    });
-  }
-}
+import React, {useState, useEffect} from 'react';
 import './App.css';
 import PokemonStatsModal from './PokemonStatsModal';
 import './PokemonStatsModal.css';
-
 
 
 function App() {
@@ -21,7 +9,6 @@ function App() {
   const [search, setSearch] = useState('');
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [modalData, setModalData] = useState(null);
-  const [notifPermission, setNotifPermission] = useState(() => (typeof Notification !== 'undefined' ? Notification.permission : 'default'));
 
   useEffect(() => {
     fetch('https://pokeapi.co/api/v2/pokemon?limit=20')
@@ -31,29 +18,43 @@ function App() {
 
   const filtered = pokemons.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
-  // Pedir permiso de notificaciones
+  // Solicitar permiso de notificaciones si no se ha hecho
   const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
-      const perm = await Notification.requestPermission();
-      setNotifPermission(perm);
+    if (!('Notification' in window)) return false;
+    if (Notification.permission === 'default') {
+      try {
+        const perm = await Notification.requestPermission();
+        return perm === 'granted';
+      } catch {
+        return false;
+      }
     }
+    return Notification.permission === 'granted';
   };
 
-  // Manejar click en la imagen para mostrar modal
+  // Manejar click en la imagen para mostrar modal y pedir permiso de notificaciones
   const handleCardClick = async (poke, pokeId) => {
+    // Solicitar permiso de notificaciones si es necesario
+    const hasPermission = await requestNotificationPermission();
     setSelectedPokemon(pokeId);
     setModalData(null);
     try {
       const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokeId}`);
       const data = await res.json();
       setModalData(data);
-      // Enviar notificación al SW si el permiso está concedido
-      if (notifPermission === 'granted') {
-        sendNotificationToSW({
-          title: `¡Pokémon consultado!`,
-          body: `Has consultado a ${data.name.charAt(0).toUpperCase() + data.name.slice(1)} (#${pokeId})`,
-          icon: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokeId}.png`,
-        });
+      // Mostrar notificación push si se tiene permiso
+      if (hasPermission && 'Notification' in window) {
+        const title = `¡Has seleccionado a ${data.name.charAt(0).toUpperCase() + data.name.slice(1)}!`;
+        const options = {
+          body: `Tipo: ${data.types.map(t => t.type.name).join(', ')}\nID: #${data.id}`,
+          icon: data.sprites?.front_default || `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokeId}.png`,
+          image: data.sprites?.other?.['official-artwork']?.front_default || undefined
+        };
+        try {
+          new Notification(title, options);
+        } catch {
+          // Ignorar error de notificación
+        }
       }
     } catch {
       setModalData(null);
@@ -68,9 +69,6 @@ function App() {
   return (
     <div className="App">
       <h1>Pokédex</h1>
-      <button onClick={requestNotificationPermission} disabled={notifPermission === 'granted'} style={{marginBottom: 12}}>
-        {notifPermission === 'granted' ? 'Notificaciones activadas' : 'Activar notificaciones'}
-      </button>
       <input
         type="text"
         placeholder="Buscar Pokémon..."
@@ -82,10 +80,10 @@ function App() {
         {filtered.map((p, index) => {
           // Extraer el ID del Pokémon desde la URL
           const idMatch = p.url.match(/\/pokemon\/(\d+)\//);
-          const pokeId = idMatch ? idMatch[1] : index + 1;
+          const pokeId = idMatch ? idMatch[1] : index+1;
           return (
             <div className="poke-card" key={pokeId}>
-              <div className="poke-img-wrapper" onClick={() => handleCardClick(p, pokeId)} style={{ cursor: 'pointer' }}>
+              <div className="poke-img-wrapper" onClick={() => handleCardClick(p, pokeId)} style={{cursor:'pointer'}}>
                 <img
                   src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokeId}.png`}
                   alt={p.name}
@@ -107,4 +105,4 @@ function App() {
   );
 }
 
-  export default App;
+export default App;
